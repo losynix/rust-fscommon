@@ -9,7 +9,7 @@ const BUF_SIZE: usize = 512;
 /// It is basically composition of `BufReader` and `BufWritter`.
 /// Buffer size is fixed to 512 to avoid dynamic allocation.
 /// `BufStream` automatically flushes itself when being dropped.
-pub struct BufStream<T: Read+Write+Seek>  {
+pub struct BufStream<T: Read + Write + Seek> {
     inner: Option<T>,
     buf: [u8; BUF_SIZE],
     len: usize,
@@ -17,7 +17,7 @@ pub struct BufStream<T: Read+Write+Seek>  {
     write: bool,
 }
 
-impl<T: Read+Write+Seek> BufStream<T> {
+impl<T: Read + Write + Seek> BufStream<T> {
     /// Creates a new `BufStream` object for a given inner stream.
     pub fn new(inner: T) -> Self {
         BufStream {
@@ -55,7 +55,10 @@ impl<T: Read+Write+Seek> BufStream<T> {
 
     fn make_writter(&mut self) -> io::Result<()> {
         if !self.write {
-            self.inner.as_mut().unwrap().seek(io::SeekFrom::Current(-(self.len as i64 - self.pos as i64)))?;
+            self.inner
+                .as_mut()
+                .unwrap()
+                .seek(io::SeekFrom::Current(-(self.len as i64 - self.pos as i64)))?;
             self.write = true;
             self.len = 0;
             self.pos = 0;
@@ -79,7 +82,7 @@ impl<T: Read+Write+Seek> BufStream<T> {
 }
 
 #[cfg(any(feature = "std", feature = "core_io/collections"))]
-impl<T: Read+Write+Seek> BufRead for BufStream<T> {
+impl<T: Read + Write + Seek> BufRead for BufStream<T> {
     fn fill_buf(&mut self) -> io::Result<&[u8]> {
         BufStream::fill_buf(self)
     }
@@ -89,7 +92,7 @@ impl<T: Read+Write+Seek> BufRead for BufStream<T> {
     }
 }
 
-impl<T: Read+Write+Seek> Read for BufStream<T> {
+impl<T: Read + Write + Seek> Read for BufStream<T> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         // Make sure we are in read mode
         self.make_reader()?;
@@ -106,7 +109,7 @@ impl<T: Read+Write+Seek> Read for BufStream<T> {
     }
 }
 
-impl<T: Read+Write+Seek> Write for BufStream<T> {
+impl<T: Read + Write + Seek> Write for BufStream<T> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         // Make sure we are in write mode
         self.make_writter()?;
@@ -127,7 +130,7 @@ impl<T: Read+Write+Seek> Write for BufStream<T> {
     }
 }
 
-impl<T: Read+Write+Seek> Seek for BufStream<T> {
+impl<T: Read + Write + Seek> Seek for BufStream<T> {
     fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
         self.flush_buf()?;
         let new_pos = match pos {
@@ -140,7 +143,7 @@ impl<T: Read+Write+Seek> Seek for BufStream<T> {
     }
 }
 
-impl<T: Read+Write+Seek> Drop for BufStream<T> {
+impl<T: Read + Write + Seek> Drop for BufStream<T> {
     fn drop(&mut self) {
         if self.inner.is_some() {
             if let Err(err) = self.flush() {

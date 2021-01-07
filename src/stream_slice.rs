@@ -13,7 +13,7 @@ pub struct StreamSlice<T: Read + Write + Seek> {
 
 impl <T: Read + Write + Seek> StreamSlice<T> {
     /// Creates new `StreamSlice` from inner stream and offset range.
-    /// 
+    ///
     /// `start_offset` is inclusive offset of the first accessible byte.
     /// `end_offset` is exclusive offset of the first non-accessible byte.
     /// `start_offset` must be lower or equal to `end_offset`.
@@ -25,6 +25,11 @@ impl <T: Read + Write + Seek> StreamSlice<T> {
             start_offset, size, inner,
             current_offset: 0,
         })
+    }
+
+    /// Returns inner object
+    pub fn into_inner(self) -> T {
+        self.inner
     }
 }
 

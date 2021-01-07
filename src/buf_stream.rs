@@ -10,7 +10,7 @@ const BUF_SIZE: usize = 512;
 /// Buffer size is fixed to 512 to avoid dynamic allocation.
 /// `BufStream` automatically flushes itself when being dropped.
 pub struct BufStream<T: Read+Write+Seek>  {
-    inner: T,
+    inner: Option<T>,
     buf: [u8; BUF_SIZE],
     len: usize,
     pos: usize,
@@ -21,7 +21,7 @@ impl<T: Read+Write+Seek> BufStream<T> {
     /// Creates a new `BufStream` object for a given inner stream.
     pub fn new(inner: T) -> Self {
         BufStream {
-            inner,
+            inner: Some(inner),
             buf: [0; BUF_SIZE],
             pos: 0,
             len: 0,
@@ -29,9 +29,15 @@ impl<T: Read+Write+Seek> BufStream<T> {
         }
     }
 
+    /// Returns inner object
+    pub fn into_inner(mut self) -> io::Result<T> {
+        self.flush()?;
+        Ok(self.inner.take().unwrap())
+    }
+
     fn flush_buf(&mut self) -> io::Result<()> {
         if self.write {
-            self.inner.write_all(&self.buf[..self.pos])?;
+            self.inner.as_mut().unwrap().write_all(&self.buf[..self.pos])?;
             self.pos = 0;
         }
         Ok(())
@@ -49,7 +55,7 @@ impl<T: Read+Write+Seek> BufStream<T> {
 
     fn make_writter(&mut self) -> io::Result<()> {
         if !self.write {
-            self.inner.seek(io::SeekFrom::Current(-(self.len as i64 - self.pos as i64)))?;
+            self.inner.as_mut().unwrap().seek(io::SeekFrom::Current(-(self.len as i64 - self.pos as i64)))?;
             self.write = true;
             self.len = 0;
             self.pos = 0;
@@ -61,7 +67,7 @@ impl<T: Read+Write+Seek> BufStream<T> {
         self.make_reader()?;
         if self.pos >= self.len {
             debug_assert!(self.pos == self.len);
-            self.len = self.inner.read(&mut self.buf)?;
+            self.len = self.inner.as_mut().unwrap().read(&mut self.buf)?;
             self.pos = 0;
         }
         Ok(&self.buf[self.pos..self.len])
@@ -89,7 +95,7 @@ impl<T: Read+Write+Seek> Read for BufStream<T> {
         self.make_reader()?;
         // Check if this read is bigger than buffer size
         if self.pos == self.len && buf.len() >= BUF_SIZE {
-            return self.inner.read(buf);
+            return self.inner.as_mut().unwrap().read(buf);
         }
         let nread = {
             let mut rem = self.fill_buf()?;
@@ -107,7 +113,7 @@ impl<T: Read+Write+Seek> Write for BufStream<T> {
         if self.pos + buf.len() > BUF_SIZE {
             self.flush_buf()?;
             if buf.len() >= BUF_SIZE {
-                return self.inner.write(buf);
+                return self.inner.as_mut().unwrap().write(buf);
             }
         }
         let written = (&mut self.buf[self.pos..]).write(buf)?;
@@ -117,7 +123,7 @@ impl<T: Read+Write+Seek> Write for BufStream<T> {
 
     fn flush(&mut self) -> io::Result<()> {
         self.flush_buf()?;
-        self.inner.flush()
+        self.inner.as_mut().unwrap().flush()
     }
 }
 
@@ -130,14 +136,16 @@ impl<T: Read+Write+Seek> Seek for BufStream<T> {
         };
         self.pos = 0;
         self.len = 0;
-        self.inner.seek(new_pos)
+        self.inner.as_mut().unwrap().seek(new_pos)
     }
 }
 
 impl<T: Read+Write+Seek> Drop for BufStream<T> {
     fn drop(&mut self) {
-        if let Err(err) = self.flush() {
-            error!("flush failed {}", err);
+        if self.inner.is_some() {
+            if let Err(err) = self.flush() {
+                error!("flush failed {}", err);
+            }
         }
     }
 }
